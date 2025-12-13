@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { CameraMode, Sticker, AspectRatio, FilterSettings, GalleryItem, FrameData, CameraResolution } from '../types';
+import { CameraMode, Sticker, AspectRatio, FilterSettings, GalleryItem, FrameData, CameraResolution, Point } from '../types';
 import { 
   IconCameraRotate, IconGrid, IconSticker, 
   IconClose, IconTrash, IconSliders, IconFrame, IconHome
 } from './Icons';
 import StickerCanvas from './StickerCanvas';
-import { getTimestampStr, formatTime } from '../utils';
+import { getTimestampStr, formatTime, getDistance, getAngle } from '../utils';
 import { WebGLRenderer } from '../renderer';
 
 // Constants
@@ -105,6 +105,18 @@ const Camera: React.FC<CameraProps> = ({
   const frameImageRef = useRef<HTMLImageElement | null>(null);
   const webglRendererRef = useRef<WebGLRenderer | null>(null);
   const animFrameRef = useRef<number>(0);
+  const compositeCleanupRef = useRef<(() => void) | null>(null);
+
+  const stickersRef = useRef<Sticker[]>([]);
+  const activeStickerPointersRef = useRef<Map<number, Point>>(new Map());
+  const stickerGestureRef = useRef({
+    isActive: false,
+    targetId: null as string | null,
+    startP1: { x: 0, y: 0 },
+    startDist: 0,
+    startAngle: 0,
+    origin: { x: 0, y: 0, scale: 1, rotation: 0 },
+  });
 
   // Mutable refs
   const filtersRef = useRef(filters);
@@ -112,6 +124,7 @@ const Camera: React.FC<CameraProps> = ({
 
   useEffect(() => { filtersRef.current = filters; }, [filters]);
   useEffect(() => { facingModeRef.current = facingMode; }, [facingMode]);
+  useEffect(() => { stickersRef.current = stickers; }, [stickers]);
 
   useEffect(() => {
     if (selectedFrame && selectedFrame.url) {
@@ -219,6 +232,13 @@ const Camera: React.FC<CameraProps> = ({
     return () => cancelAnimationFrame(animFrameRef.current);
   }, [renderLoop]);
 
+  useEffect(() => {
+    return () => {
+      compositeCleanupRef.current?.();
+      compositeCleanupRef.current = null;
+    };
+  }, []);
+
   const saveToGallery = (blob: Blob, type: 'image' | 'video', filename: string) => {
     const url = URL.createObjectURL(blob);
     const newItem: GalleryItem = {
@@ -227,6 +247,186 @@ const Camera: React.FC<CameraProps> = ({
     };
     setGalleryItems(prev => [...prev, newItem]);
   };
+
+  const getStickerAtPoint = (x: number, y: number) => {
+    for (let i = stickersRef.current.length - 1; i >= 0; i -= 1) {
+      const sticker = stickersRef.current[i];
+      const dx = x - sticker.x;
+      const dy = y - sticker.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 60 * sticker.scale) return sticker.id;
+    }
+    return null;
+  };
+
+  const updateGestureOrigin = (id: string | null) => {
+    if (!id) return;
+    const sticker = stickersRef.current.find(s => s.id === id);
+    if (sticker) {
+      stickerGestureRef.current.origin = {
+        x: sticker.x,
+        y: sticker.y,
+        scale: sticker.scale,
+        rotation: sticker.rotation,
+      };
+    }
+  };
+
+  const getCanvasPoint = (event: React.PointerEvent<HTMLCanvasElement>): Point => {
+    const canvas = stickerCanvasRef.current;
+    if (!canvas) return { x: 0, y: 0 };
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return {
+      x: (event.clientX - rect.left) * scaleX,
+      y: (event.clientY - rect.top) * scaleY,
+    };
+  };
+
+  const handleStickerPointerDown = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    if ((event.pointerType === 'mouse' && event.button !== 0) || !stickersRef.current.length) return;
+    const canvas = stickerCanvasRef.current;
+    if (!canvas) return;
+
+    const point = getCanvasPoint(event);
+    const pointers = activeStickerPointersRef.current;
+    const gesture = stickerGestureRef.current;
+    let targetId = gesture.targetId;
+
+    if (!targetId || pointers.size === 0) {
+      const hitId = getStickerAtPoint(point.x, point.y);
+      if (!hitId) {
+        if (!targetId) setSelectedStickerId(null);
+        return;
+      }
+      if (!targetId || hitId !== targetId) {
+        gesture.targetId = hitId;
+        targetId = hitId;
+        setSelectedStickerId(hitId);
+      }
+    }
+
+    event.preventDefault();
+    pointers.set(event.pointerId, point);
+    canvas.setPointerCapture(event.pointerId);
+
+    if (pointers.size === 1) {
+      gesture.startP1 = point;
+      gesture.startDist = 0;
+      updateGestureOrigin(gesture.targetId);
+    } else if (pointers.size >= 2) {
+      const pointerArray = Array.from(pointers.values());
+      gesture.startP1 = pointerArray[0];
+      gesture.startDist = getDistance(pointerArray[0], pointerArray[1]);
+      gesture.startAngle = getAngle(pointerArray[0], pointerArray[1]);
+      updateGestureOrigin(gesture.targetId);
+    }
+
+    gesture.isActive = true;
+  };
+
+  const handleStickerPointerMove = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const pointers = activeStickerPointersRef.current;
+    const gesture = stickerGestureRef.current;
+    if (!gesture.targetId || !pointers.has(event.pointerId)) return;
+    event.preventDefault();
+
+    const point = getCanvasPoint(event);
+    pointers.set(event.pointerId, point);
+    const pointerArray = Array.from(pointers.values());
+    if (!pointerArray.length) return;
+
+    if (pointerArray.length === 1) {
+      const dx = pointerArray[0].x - gesture.startP1.x;
+      const dy = pointerArray[0].y - gesture.startP1.y;
+      const origin = gesture.origin;
+      setStickers(prev => prev.map(s => (
+        s.id === gesture.targetId ? { ...s, x: origin.x + dx, y: origin.y + dy } : s
+      )));
+    } else {
+      const [p1, p2] = pointerArray;
+      const dist = getDistance(p1, p2);
+      const angle = getAngle(p1, p2);
+      const scaleFactor = dist / (gesture.startDist || 1);
+      const angleDiff = angle - gesture.startAngle;
+      setStickers(prev => prev.map(s => (
+        s.id === gesture.targetId
+          ? {
+              ...s,
+              scale: Math.max(0.2, Math.min(5, gesture.origin.scale * scaleFactor)),
+              rotation: gesture.origin.rotation + angleDiff,
+            }
+          : s
+      )));
+    }
+  };
+
+  const handleStickerPointerUp = (event: React.PointerEvent<HTMLCanvasElement>) => {
+    const pointers = activeStickerPointersRef.current;
+    if (pointers.has(event.pointerId)) {
+      pointers.delete(event.pointerId);
+    }
+
+    const canvas = stickerCanvasRef.current;
+    if (canvas?.hasPointerCapture(event.pointerId)) {
+      canvas.releasePointerCapture(event.pointerId);
+    }
+
+    if (!pointers.size) {
+      stickerGestureRef.current.isActive = false;
+      stickerGestureRef.current.targetId = null;
+      return;
+    }
+
+    const pointerArray = Array.from(pointers.values());
+    stickerGestureRef.current.startP1 = pointerArray[0];
+    if (pointerArray.length >= 2) {
+      stickerGestureRef.current.startDist = getDistance(pointerArray[0], pointerArray[1]);
+      stickerGestureRef.current.startAngle = getAngle(pointerArray[0], pointerArray[1]);
+    } else {
+      stickerGestureRef.current.startDist = 0;
+    }
+    updateGestureOrigin(stickerGestureRef.current.targetId);
+  };
+
+  const createCompositeStream = useCallback(() => {
+    const baseCanvas = canvasRef.current;
+    if (!baseCanvas) return null;
+    const stickerCanvas = stickerCanvasRef.current;
+    const compositeCanvas = document.createElement('canvas');
+    const ctx = compositeCanvas.getContext('2d');
+    if (!ctx) return null;
+
+    compositeCanvas.width = baseCanvas.width;
+    compositeCanvas.height = baseCanvas.height;
+
+    let rafId: number;
+    const draw = () => {
+      const sourceCanvas = canvasRef.current;
+      if (!sourceCanvas) return;
+      if (compositeCanvas.width !== sourceCanvas.width || compositeCanvas.height !== sourceCanvas.height) {
+        compositeCanvas.width = sourceCanvas.width;
+        compositeCanvas.height = sourceCanvas.height;
+      }
+
+      ctx.clearRect(0, 0, compositeCanvas.width, compositeCanvas.height);
+      ctx.drawImage(sourceCanvas, 0, 0, compositeCanvas.width, compositeCanvas.height);
+      if (frameImageRef.current) {
+        ctx.drawImage(frameImageRef.current, 0, 0, compositeCanvas.width, compositeCanvas.height);
+      }
+      if (stickerCanvas) {
+        ctx.drawImage(stickerCanvas, 0, 0, compositeCanvas.width, compositeCanvas.height);
+      }
+      rafId = requestAnimationFrame(draw);
+    };
+    draw();
+
+    return {
+      stream: compositeCanvas.captureStream(30),
+      cleanup: () => cancelAnimationFrame(rafId),
+    };
+  }, []);
 
   const takePhoto = () => {
     const glCanvas = canvasRef.current;
@@ -273,10 +473,10 @@ const Camera: React.FC<CameraProps> = ({
         takePhoto();
     }
     else if (mode === 'LIVE') {
-        if (!canvasRef.current) return;
+        const compositeSession = createCompositeStream();
+        if (!compositeSession) return;
+        const { stream, cleanup } = compositeSession;
         try {
-            // Start recording immediately
-            const stream = canvasRef.current.captureStream(30);
             const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm'; 
             const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2500000 });
             const chunks: Blob[] = [];
@@ -286,6 +486,7 @@ const Camera: React.FC<CameraProps> = ({
                 const blob = new Blob(chunks, { type: mimeType });
                 saveToGallery(blob, 'video', `live_video_${getTimestampStr()}.${mimeType === 'video/mp4' ? 'mp4' : 'webm'}`);
                 setLiveCountdown(null);
+                cleanup();
             };
             
             recorder.start();
@@ -314,17 +515,22 @@ const Camera: React.FC<CameraProps> = ({
             };
             tick();
             
-        } catch(e) { console.error(e); setIsRecording(false); }
+        } catch(e) { 
+            console.error(e); 
+            cleanup();
+            setIsRecording(false); 
+        }
     } else if (mode === 'VIDEO') {
         if (isRecording) {
             if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') mediaRecorderRef.current.stop();
         } else {
-            if (!canvasRef.current) return;
+            const compositeSession = createCompositeStream();
+            if (!compositeSession) return;
+            const { stream, cleanup } = compositeSession;
             try {
-                const stream = canvasRef.current.captureStream(30);
                 if (videoRef.current && videoRef.current.srcObject) {
                     const audioTracks = (videoRef.current.srcObject as MediaStream).getAudioTracks();
-                    if (audioTracks.length > 0) stream.addTrack(audioTracks[0]);
+                    audioTracks.forEach(track => stream.addTrack(track));
                 }
                 const mimeType = MediaRecorder.isTypeSupported('video/mp4') ? 'video/mp4' : 'video/webm';
                 mediaRecorderRef.current = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 2500000 });
@@ -334,13 +540,21 @@ const Camera: React.FC<CameraProps> = ({
                     const blob = new Blob(chunksRef.current, { type: mimeType });
                     saveToGallery(blob, 'video', `video_${getTimestampStr()}.${mimeType === 'video/mp4' ? 'mp4' : 'webm'}`);
                     setIsRecording(false); setRecordingTime(0); clearInterval(timerIntervalRef.current);
+                    cleanup();
+                    compositeCleanupRef.current = null;
                 };
+                compositeCleanupRef.current = cleanup;
                 mediaRecorderRef.current.start(100); 
                 setIsRecording(true);
                 timerIntervalRef.current = setInterval(() => {
                     setRecordingTime(prev => { if (prev >= 60) { mediaRecorderRef.current?.stop(); return 60; } return prev + 1; });
                 }, 1000);
-            } catch (e) { console.error(e); setIsRecording(false); }
+            } catch (e) { 
+                console.error(e); 
+                cleanup();
+                compositeCleanupRef.current = null;
+                setIsRecording(false); 
+            }
         }
     }
   };
@@ -446,7 +660,22 @@ const Camera: React.FC<CameraProps> = ({
           <video ref={videoRef} autoPlay playsInline muted className="hidden" />
           <canvas ref={canvasRef} className="absolute top-0 left-0 w-full h-full object-cover" />
           {selectedFrame && selectedFrame.url && <div className="absolute inset-0 z-20 pointer-events-none"><img src={selectedFrame.url} alt="frame" className="w-full h-full object-fill" /></div>}
-          <StickerCanvas stickers={stickers} setStickers={setStickers} width={viewportDims.w} height={viewportDims.h} canvasRef={stickerCanvasRef} selectedStickerId={selectedStickerId} setSelectedStickerId={setSelectedStickerId} />
+          <StickerCanvas 
+            stickers={stickers} 
+            setStickers={setStickers} 
+            width={viewportDims.w} 
+            height={viewportDims.h} 
+            canvasRef={stickerCanvasRef} 
+            selectedStickerId={selectedStickerId} 
+            setSelectedStickerId={setSelectedStickerId} 
+            interactionHandlers={{
+              onPointerDown: handleStickerPointerDown,
+              onPointerMove: handleStickerPointerMove,
+              onPointerUp: handleStickerPointerUp,
+              onPointerLeave: handleStickerPointerUp,
+              onPointerCancel: handleStickerPointerUp,
+            }}
+          />
           {gridOn && <div className="absolute inset-0 z-30 pointer-events-none grid grid-cols-3 grid-rows-3 opacity-90"><div className="border-r border-white/60 shadow-[0_0_2px_rgba(0,0,0,0.3)]"></div><div className="border-r border-white/60 shadow-[0_0_2px_rgba(0,0,0,0.3)]"></div><div></div><div className="border-r border-white/60 border-t border-b shadow-[0_0_2px_rgba(0,0,0,0.3)]"></div><div className="border-r border-white/60 border-t border-b shadow-[0_0_2px_rgba(0,0,0,0.3)]"></div><div className="border-t border-b border-white/60 shadow-[0_0_2px_rgba(0,0,0,0.3)]"></div><div className="border-r border-white/60 shadow-[0_0_2px_rgba(0,0,0,0.3)]"></div><div className="border-r border-white/60 shadow-[0_0_2px_rgba(0,0,0,0.3)]"></div><div></div></div>}
           
           {/* Right Sidebar - Light Theme */}
