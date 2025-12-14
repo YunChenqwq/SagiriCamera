@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { GalleryItem, FrameData, AspectRatio } from '../types';
 import { IconClose, IconTrash, IconDownload, IconCheck, IconImage, IconSticker, IconFrame, IconCloud, IconPlus } from './Icons';
-import { downloadBlob, dbAdd, dbDelete, STORE_GALLERY, STORE_STICKERS, STORE_FRAMES, getTimestampStr } from '../utils';
+import { downloadBlob, dbAdd, dbDelete, STORE_GALLERY, STORE_STICKERS, STORE_FRAMES, getTimestampStr, getPublicAssetUrl } from '../utils';
 import JSZip from 'jszip';
 
 interface GalleryProps {
@@ -40,7 +40,7 @@ const Gallery: React.FC<GalleryProps> = ({
   useEffect(() => {
       const fetchInfo = async () => {
           try {
-              const sRes = await fetch('./official/stickers/stickers_info.json');
+              const sRes = await fetch(getPublicAssetUrl('official/stickers/stickers_info.json'));
               if (sRes.ok) {
                   const sData = await sRes.json();
                   if (sData.image_count) {
@@ -50,7 +50,7 @@ const Gallery: React.FC<GalleryProps> = ({
           } catch(e) { console.warn("Could not load stickers info", e); }
 
           try {
-              const fRes = await fetch('./official/frame/frame_info.json');
+              const fRes = await fetch(getPublicAssetUrl('official/frame/frame_info.json'));
               if (fRes.ok) {
                   const fData = await fRes.json();
                   if (fData.image_count) {
@@ -145,7 +145,7 @@ const Gallery: React.FC<GalleryProps> = ({
       setAddingAsset(filename);
       const folder = officialSubTab === 'stickers' ? 'stickers' : 'frame';
       // Use relative path
-      const path = `./official/${folder}/${filename}`;
+      const path = getPublicAssetUrl(`official/${folder}/${filename}`);
       
       try {
           const res = await fetch(path);
@@ -285,7 +285,7 @@ const Gallery: React.FC<GalleryProps> = ({
               {currentList.map(filename => {
                   const folder = officialSubTab === 'stickers' ? 'stickers' : 'frame';
                   // Use relative path for image display
-                  const path = `./official/${folder}/${filename}`;
+                  const path = getPublicAssetUrl(`official/${folder}/${filename}`);
                   return (
                       <div key={filename} className="aspect-square relative group bg-white/5 rounded-xl border border-white/10 p-2 flex flex-col items-center justify-center">
                           <div className="absolute inset-0 bg-[url('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAAAAMUlEQVQ4T2NkYGAQYcAP3uCTZhw1gGGYhAGBZIA/nYDCgBDAm9BGDWAAjyQc6wcgAgA9xwwByzr4kgAAAABJRU5ErkJggg==')] opacity-10 rounded-lg"></div>

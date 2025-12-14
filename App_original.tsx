@@ -1,4 +1,4 @@
-﻿
+
 import React, { useState, useEffect } from 'react';
 import Camera from './components/Camera';
 import Editor from './components/Editor';
@@ -6,15 +6,12 @@ import Decorator from './components/Decorator';
 import Gallery from './components/Gallery';
 import { GalleryItem, FrameData, Sticker } from './types';
 import { IconCameraRotate, IconMagic, IconImage, IconClose, IconFrame, IconHeart, IconTv, IconGithub } from './components/Icons';
-import { dbGetAll, dbAdd, dbDelete, STORE_GALLERY, STORE_STICKERS, STORE_FRAMES, getPublicAssetUrl } from './utils';
+import { dbGetAll, dbAdd, dbDelete, STORE_GALLERY, STORE_STICKERS, STORE_FRAMES } from './utils';
 
 // Cleared default frames as requested, keeping only 'None'
 const INITIAL_FRAMES: FrameData[] = [
-  { id: 'none', name: '无边框', url: '', aspectRatio: '3:4' },
+  { id: 'none', name: '无边�?, url: '', aspectRatio: '3:4' },
 ];
-
-const SAGIRI_ICON_SRC = getPublicAssetUrl('SagiriCamera.jpg');
-const AUTHOR_AVATAR_SRC = getPublicAssetUrl('Author.jpg');
 
 // App is now the Router / Menu
 const App: React.FC = () => {
@@ -100,7 +97,7 @@ const App: React.FC = () => {
         <div className="mb-12 text-center">
             <div className="w-28 h-28 bg-white rounded-[2rem] flex items-center justify-center mb-6 shadow-2xl shadow-sky-200/50 mx-auto animate-bounce p-1.5 ring-4 ring-white/50">
                  <img 
-                    src={SAGIRI_ICON_SRC} 
+                    src="./SagiriCamera.jpg" 
                     className="w-full h-full object-cover rounded-[1.5rem]" 
                     alt="Sagiri Icon"
                     onError={(e) => {
@@ -114,7 +111,7 @@ const App: React.FC = () => {
                  />
             </div>
             {/* Added extra bottom margin (mb-6) to separate from subtitle */}
-            <h1 className="relative -top-3 text-5xl font-black tracking-tighter mb-6 bg-gradient-to-r from-pink-400 to-sky-400 bg-clip-text text-transparent drop-shadow-sm">
+            <h1 className="text-5xl font-black tracking-tighter mb-6 bg-gradient-to-r from-pink-400 to-sky-400 bg-clip-text text-transparent drop-shadow-sm">
                 Sagiri Camera
             </h1>
             <p className="text-slate-500 font-medium tracking-wide">让虚拟融合进现实</p>
@@ -176,7 +173,7 @@ const App: React.FC = () => {
                                  <IconMagic className="w-6 h-6" />
                              </div>
                              <span className="font-bold text-slate-700 text-sm">透明抠图</span>
-                             <span className="text-[10px] text-slate-400 text-center">智能去底，自由涂抹</span>
+                             <span className="text-[10px] text-slate-400 text-center">智能去底，自由涂�?/span>
                         </button>
                         
                         <label className="flex flex-col items-center justify-center p-6 bg-slate-50 rounded-2xl border border-slate-200 active:scale-95 hover:bg-slate-100 transition-all gap-3 cursor-pointer">
@@ -184,7 +181,7 @@ const App: React.FC = () => {
                                  <IconFrame className="w-6 h-6" />
                              </div>
                              <span className="font-bold text-slate-700 text-sm">装饰编辑</span>
-                             <span className="text-[10px] text-slate-400 text-center">上传照片/视频加画框贴纸</span>
+                             <span className="text-[10px] text-slate-400 text-center">上传照片/视频加画框贴�?/span>
                              <input type="file" accept="image/*,video/*" className="hidden" onChange={handleEditMediaUpload} />
                         </label>
                     </div>
@@ -193,7 +190,7 @@ const App: React.FC = () => {
         )}
 
         <div className="absolute bottom-6 text-[10px] text-slate-400/80 font-mono pointer-events-none">
-            V 1.0.0 • 纱雾相机·yunchenqwq
+            V 1.0.0 �?纱雾相机·yunchenqwq
         </div>
 
         {/* About/Sponsor Button */}
@@ -213,10 +210,10 @@ const App: React.FC = () => {
                     <div className="flex flex-col items-center mb-6 mt-2">
                         <div className="w-20 h-20 rounded-full bg-slate-100 overflow-hidden mb-3 border-[3px] border-white shadow-lg relative group">
                             {/* Author Avatar */}
-                            <img src={AUTHOR_AVATAR_SRC} alt="yunchenqwq" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "https://github.com/yunchenqwq.png"}} />
+                            <img src="./author.jpg" alt="yunchenqwq" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "https://github.com/yunchenqwq.png"}} />
                         </div>
                         <h3 className="font-bold text-lg text-slate-800">yunchenqwq</h3>
-                        <p className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full mt-1">独立开发者</p>
+                        <p className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full mt-1">独立开发�?/p>
                     </div>
 
                     <div className="space-y-3">
@@ -245,8 +242,8 @@ const App: React.FC = () => {
                                 <IconHeart className="w-5 h-5" />
                             </div>
                             <div className="flex-1 min-w-0">
-                                <div className="text-xs font-bold text-slate-700">爱发电</div>
-                                <div className="text-[10px] text-slate-400">赞助开发者</div>
+                                <div className="text-xs font-bold text-slate-700">爱发�?/div>
+                                <div className="text-[10px] text-slate-400">赞助开发�?/div>
                             </div>
                         </a>
                     </div>

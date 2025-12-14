@@ -1,6 +1,10 @@
 
 import { Point } from './types';
 
+const baseUrl = import.meta.env.BASE_URL ?? '/';
+const normalizedBaseUrl = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+export const getPublicAssetUrl = (relativePath: string) => `${normalizedBaseUrl}${relativePath.replace(/^\//, '')}`;
+
 // Standard download anchor method
 export const downloadBlob = (blob: Blob, filename: string) => {
   const url = URL.createObjectURL(blob);
