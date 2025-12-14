@@ -1,10 +1,11 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { Sticker, AspectRatio, FilterSettings, GalleryItem, FrameData, Point } from '../types';
 import { 
   IconHome, IconGrid, IconSticker, IconClose, IconTrash, IconSliders, IconFrame, IconDownload 
 } from './Icons';
 import StickerCanvas from './StickerCanvas';
-import { getTimestampStr, getDistance, getAngle, getMidpoint } from '../utils';
+import { getTimestampStr, getDistance, getAngle, getMidpoint, dbAdd, STORE_FRAMES, STORE_STICKERS } from '../utils';
 import { WebGLRenderer } from '../renderer';
 
 // Constants
@@ -38,17 +39,17 @@ interface DecoratorProps {
   setGalleryItems: React.Dispatch<React.SetStateAction<GalleryItem[]>>;
   frames: FrameData[];
   setFrames: React.Dispatch<React.SetStateAction<FrameData[]>>;
-  availableStickers: {id: string, url: string}[];
+  availableStickers: {id: string, url: string, blob?: Blob}[];
+  setAvailableStickers: React.Dispatch<React.SetStateAction<{id: string, url: string, blob?: Blob}[]>>;
 }
 
 const Decorator: React.FC<DecoratorProps> = ({ 
   media, onBack, setGalleryItems,
-  frames, setFrames, availableStickers
+  frames, setFrames, availableStickers, setAvailableStickers
 }) => {
   
   // -- State --
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>('3:4');
-  const [customRatioValue, setCustomRatioValue] = useState<number | null>(null);
   const [viewportDims, setViewportDims] = useState({ w: window.innerWidth, h: window.innerWidth * 1.33 });
   
   // Media State
@@ -111,8 +112,7 @@ const Decorator: React.FC<DecoratorProps> = ({
         img.onload = () => {
             sourceImageRef.current = img;
             setMediaDims({ width: img.width, height: img.height });
-            setCustomRatioValue(img.width / img.height);
-            setAspectRatio('自定义');
+            setAspectRatio(`${img.width}:${img.height}`);
         };
     }
   }, [media]);
@@ -137,15 +137,25 @@ const Decorator: React.FC<DecoratorProps> = ({
       const maxH = window.innerHeight - topBarHeight - bottomBarHeight;
       
       let targetRatio = 3/4;
+
       if (aspectRatio === '1:1') targetRatio = 1;
       else if (aspectRatio === '3:4') targetRatio = 3/4;
       else if (aspectRatio === '4:3') targetRatio = 4/3;
       else if (aspectRatio === '9:16') targetRatio = 9/16;
       else if (aspectRatio === '16:9') targetRatio = 16/9;
-      else if (aspectRatio === '自定义' && customRatioValue) targetRatio = 1/customRatioValue;
       else if (typeof aspectRatio === 'string' && aspectRatio.includes(':')) {
            const parts = aspectRatio.split(':');
-           if(parts.length === 2) targetRatio = Number(parts[0])/Number(parts[1]);
+           if(parts.length === 2) {
+               const numW = Number(parts[0]);
+               const numH = Number(parts[1]);
+               if (!isNaN(numW) && !isNaN(numH) && numW !== 0) {
+                   targetRatio = numW / numH; // Corrected: Aspect ratio logic here is W/H usually for layout, but let's check
+                   // In Decorator, viewport H = W / targetRatio.
+                   // If aspect is 16:9 (W:H), ratio = 16/9. H = W / (16/9) = W * 9/16. Correct.
+                   // So if input is "21:9", ratio = 21/9.
+                   targetRatio = numW / numH;
+               }
+           }
       }
 
       let finalW = w;
@@ -159,7 +169,7 @@ const Decorator: React.FC<DecoratorProps> = ({
     handleResize();
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [aspectRatio, customRatioValue]);
+  }, [aspectRatio]);
 
   // 5. Render Loop
   const render = useCallback(() => {
@@ -204,8 +214,7 @@ const Decorator: React.FC<DecoratorProps> = ({
   const handleVideoMetadata = (e: React.SyntheticEvent<HTMLVideoElement>) => {
       const v = e.currentTarget;
       setMediaDims({ width: v.videoWidth, height: v.videoHeight });
-      setCustomRatioValue(v.videoWidth / v.videoHeight);
-      setAspectRatio('自定义');
+      setAspectRatio(`${v.videoWidth}:${v.videoHeight}`);
   };
 
   const getStickerAtPoint = (x: number, y: number) => {
@@ -355,22 +364,32 @@ const Decorator: React.FC<DecoratorProps> = ({
 
   // -- Logic: Toggle Ratio --
   const toggleAspectRatio = () => {
-      const next: Record<string, AspectRatio> = {
-          '3:4': '9:16', '9:16': '1:1', '1:1': '4:3', '4:3': '16:9', '16:9': '自定义', '自定义': '3:4'
-      };
+      // Order: 3:4 -> 9:16 -> 1:1 -> 4:3 -> 16:9 -> Custom -> 3:4
+      const ratios: AspectRatio[] = ['3:4', '9:16', '1:1', '4:3', '16:9'];
+      const current = aspectRatio as string;
+      const idx = ratios.indexOf(current as any);
       
-      const newRatio = next[aspectRatio as string] || '3:4';
-      if (newRatio === '自定义') {
-          const input = prompt("输入宽高比 (例如 2.35:1)", "2.35:1");
-          if (input) {
+      if (idx !== -1 && idx < ratios.length - 1) {
+          // Move to next standard ratio
+          setAspectRatio(ratios[idx + 1]);
+      } else if (current === '16:9') {
+          // 16:9 -> Custom
+          const input = prompt("输入自定义宽高比 (宽:高, 例如 2.35:1)", "2.35:1");
+          if (input && input.includes(':')) {
               const parts = input.split(':');
-              if (parts.length === 2 && !isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
-                  setCustomRatioValue(Number(parts[0]) / Number(parts[1]));
-                  setAspectRatio('自定义');
-              } else setAspectRatio('3:4');
-          } else setAspectRatio('3:4');
+              if (!isNaN(Number(parts[0])) && !isNaN(Number(parts[1]))) {
+                  setAspectRatio(input);
+              } else {
+                  alert("格式错误，请使用 宽:高 格式");
+                  setAspectRatio('3:4'); // Fallback to start
+              }
+          } else {
+              // Cancelled or empty -> go to start
+              setAspectRatio('3:4');
+          }
       } else {
-          setAspectRatio(newRatio);
+          // Custom (or unknown) -> 3:4
+          setAspectRatio('3:4');
       }
   };
 
@@ -583,7 +602,7 @@ const Decorator: React.FC<DecoratorProps> = ({
           <div className="absolute bottom-28 left-6 right-6 md:left-1/2 md:-translate-x-1/2 md:w-80 z-50 bg-white/70 backdrop-blur-lg rounded-3xl shadow-2xl border border-white/40 animate-slide-up flex flex-col p-4 max-h-[50vh]">
             <div className="flex justify-between items-center mb-4 px-2">
               <span className="text-xs font-black text-slate-500 tracking-widest uppercase">滤镜</span>
-              <button onClick={() => setShowFilters(false)} className="p-1 bg-slate-100/50 rounded-full hover:bg-slate-200 text-slate-500"><IconClose className="w-4 h-4"/></button>
+              <button onClick={() => setShowFilters(false)} className="p-1 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500"><IconClose className="w-4 h-4"/></button>
             </div>
             <div className="overflow-x-auto flex gap-3 pb-4 hide-scrollbar px-1">
               {PRESETS.map((p) => (
@@ -630,7 +649,7 @@ const Decorator: React.FC<DecoratorProps> = ({
                     if (file) {
                         const url = URL.createObjectURL(file);
                         const img = new Image();
-                        img.onload = () => {
+                        img.onload = async () => {
                             const ratio = img.width / img.height;
                             let ar: AspectRatio = '3:4';
                             if (Math.abs(ratio - 1) < 0.1) ar = '1:1';
@@ -639,8 +658,10 @@ const Decorator: React.FC<DecoratorProps> = ({
                             else if (Math.abs(ratio - 16/9) < 0.1) ar = '16:9';
                             else ar = `${img.width}:${img.height}`;
 
-                            const newFrame = { id: 'c_'+Date.now(), name: '自定义', url, aspectRatio: ar };
-                            setFrames(p => [...p, newFrame]); setSelectedFrame(newFrame); setAspectRatio(ar); setShowFramePicker(false);
+                            const newFrame = { id: 'c_'+Date.now(), name: '自定义', url, aspectRatio: ar, blob: file };
+                            setFrames(p => [...p, newFrame]); 
+                            await dbAdd(STORE_FRAMES, newFrame);
+                            setSelectedFrame(newFrame); setAspectRatio(ar); setShowFramePicker(false);
                         };
                         img.src = url;
                     }
@@ -658,7 +679,7 @@ const Decorator: React.FC<DecoratorProps> = ({
         </div>
       )}
 
-      {/* Sticker Picker Modal */}
+      {/* Sticker Picker */}
       {showStickerPicker && (
         <div className="absolute inset-0 z-50 bg-black/20 backdrop-blur-sm flex items-end">
           <div className="bg-white/95 backdrop-blur-2xl w-full rounded-t-[2.5rem] p-6 pb-safe animate-slide-up shadow-2xl border-t border-white/50">
@@ -674,8 +695,22 @@ const Decorator: React.FC<DecoratorProps> = ({
                     const file = e.target.files?.[0];
                     if (file) {
                         const url = URL.createObjectURL(file);
-                        const ns: Sticker = { id: Date.now().toString(), url, x: viewportDims.w/2, y: viewportDims.h/2, scale: 1, rotation: 0, aspectRatio: 1 };
-                        const img = new Image(); img.onload = () => { ns.aspectRatio = img.width/img.height; setStickers(p=>[...p, ns]); setSelectedStickerId(ns.id); setShowStickerPicker(false); }; img.src = url;
+                        const id = Date.now().toString();
+                        const ns: Sticker = { id, url, x: viewportDims.w/2, y: viewportDims.h/2, scale: 1, rotation: 0, aspectRatio: 1 };
+                        
+                        const img = new Image(); 
+                        img.onload = async () => { 
+                            ns.aspectRatio = img.width/img.height; 
+                            setStickers(p=>[...p, ns]); 
+                            setSelectedStickerId(ns.id); 
+                            
+                            const stickerAsset = { id, url, blob: file };
+                            setAvailableStickers(p => [...p, stickerAsset]);
+                            await dbAdd(STORE_STICKERS, stickerAsset);
+                            
+                            setShowStickerPicker(false); 
+                        }; 
+                        img.src = url;
                     }
                 }} />
               </label>

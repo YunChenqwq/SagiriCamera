@@ -1,14 +1,12 @@
+
 <!DOCTYPE html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
-    <meta name="theme-color" content="#121212" />
-    <meta name="description" content="Sagiri Camera - 轻松制作缇雅脸贴纸的在线相机应用" />
     <title>Sagiri Camera</title>
-    <link rel="icon" href="/SagiriCamera.jpg" />
-    <link rel="apple-touch-icon" href="/SagiriCamera.jpg" />
-    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="./SagiriCamera.jpg" />
+    <link rel="apple-touch-icon" href="./SagiriCamera.jpg" />
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
@@ -63,44 +61,12 @@
         }
       }
     </script>
-    <style>
-      body {
-        overscroll-behavior: none;
-        background: #f0f9ff; /* sky-50 */
-        color: #1e293b; /* slate-800 */
-      }
-      /* Hide scrollbar */
-      ::-webkit-scrollbar {
-        width: 0px;
-        background: transparent;
-      }
-      .no-select {
-        user-select: none;
-        -webkit-user-select: none;
-      }
-      .hide-scrollbar::-webkit-scrollbar {
-        display: none;
-      }
-      .hide-scrollbar {
-        -ms-overflow-style: none;
-        scrollbar-width: none;
-      }
-      /* Custom Blur for Camera Flip */
-      .camera-flipping {
-        filter: blur(10px);
-        transition: filter 0.4s ease;
-      }
-      .camera-stable {
-        filter: blur(0px);
-        transition: filter 0.4s ease;
-      }
-    </style>
   <script type="importmap">
 {
   "imports": {
-    "react": "https://esm.sh/react@^19.2.3",
-    "react-dom/": "https://esm.sh/react-dom@^19.2.3/",
-    "react/": "https://esm.sh/react@^19.2.3/",
+    "react": "https://esm.sh/react@18.3.1",
+    "react-dom/": "https://esm.sh/react-dom@18.3.1/",
+    "react/": "https://esm.sh/react@18.3.1/",
     "jszip": "https://esm.sh/jszip@3.10.1"
   }
 }
@@ -108,6 +74,6 @@
 </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/index.tsx"></script>
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>

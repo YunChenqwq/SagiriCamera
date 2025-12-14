@@ -1,10 +1,12 @@
-import React, { useState } from 'react';
+
+import React, { useState, useEffect } from 'react';
 import Camera from './components/Camera';
 import Editor from './components/Editor';
 import Decorator from './components/Decorator';
 import Gallery from './components/Gallery';
-import { GalleryItem, FrameData } from './types';
+import { GalleryItem, FrameData, Sticker } from './types';
 import { IconCameraRotate, IconMagic, IconImage, IconClose, IconFrame, IconHeart, IconTv, IconGithub } from './components/Icons';
+import { dbGetAll, dbAdd, dbDelete, STORE_GALLERY, STORE_STICKERS, STORE_FRAMES } from './utils';
 
 // Cleared default frames as requested, keeping only 'None'
 const INITIAL_FRAMES: FrameData[] = [
@@ -17,7 +19,7 @@ const App: React.FC = () => {
   const [galleryItems, setGalleryItems] = useState<GalleryItem[]>([]);
   
   // Cleared default stickers as requested
-  const [availableStickers, setAvailableStickers] = useState<{id: string, url: string}[]>([]);
+  const [availableStickers, setAvailableStickers] = useState<{id: string, url: string, blob?: Blob}[]>([]);
 
   const [frames, setFrames] = useState<FrameData[]>(INITIAL_FRAMES);
 
@@ -27,6 +29,54 @@ const App: React.FC = () => {
   // Modal for Production Selection
   const [showProductionOptions, setShowProductionOptions] = useState(false);
   const [showAbout, setShowAbout] = useState(false);
+  const [dataLoaded, setDataLoaded] = useState(false);
+
+  // Load Persistence Data
+  useEffect(() => {
+    const loadData = async () => {
+        try {
+            // Load Gallery
+            const savedGallery = await dbGetAll(STORE_GALLERY);
+            const processedGallery = savedGallery.map(item => ({
+                ...item,
+                url: URL.createObjectURL(item.blob) // Recreate URL from Blob
+            }));
+            setGalleryItems(processedGallery);
+
+            // Load Stickers
+            const savedStickers = await dbGetAll(STORE_STICKERS);
+            const processedStickers = savedStickers.map(item => ({
+                ...item,
+                url: item.blob ? URL.createObjectURL(item.blob) : item.url
+            }));
+            setAvailableStickers(processedStickers);
+
+            // Load Frames
+            const savedFrames = await dbGetAll(STORE_FRAMES);
+            if (savedFrames.length > 0) {
+                const processedFrames = savedFrames.map(item => ({
+                    ...item,
+                    url: item.blob ? URL.createObjectURL(item.blob) : item.url
+                }));
+                setFrames([...INITIAL_FRAMES, ...processedFrames]);
+            }
+
+            setDataLoaded(true);
+        } catch (e) {
+            console.error("Failed to load persistence data", e);
+        }
+    };
+    loadData();
+  }, []);
+
+  // --- Wrapper Functions to update State AND DB ---
+  
+  const updateGalleryItems: React.Dispatch<React.SetStateAction<GalleryItem[]>> = (action) => {
+      setGalleryItems(prev => {
+          const newState = typeof action === 'function' ? action(prev) : action;
+          return newState;
+      });
+  };
 
   const handleEditMediaUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -47,13 +97,21 @@ const App: React.FC = () => {
         <div className="mb-12 text-center">
             <div className="w-28 h-28 bg-white rounded-[2rem] flex items-center justify-center mb-6 shadow-2xl shadow-sky-200/50 mx-auto animate-bounce p-1.5 ring-4 ring-white/50">
                  <img 
-                    src="https://youke2.picui.cn/s1/2025/12/13/693ceed094acd.png" 
+                    src="./SagiriCamera.jpg" 
                     className="w-full h-full object-cover rounded-[1.5rem]" 
                     alt="Sagiri Icon"
-                    onError={(e) => {e.currentTarget.src = "https://github.com/yunchenqwq.png"}}
+                    onError={(e) => {
+                        // Prevent falling back to author image if main icon fails
+                        e.currentTarget.style.display = 'none';
+                        if (e.currentTarget.parentElement) {
+                            e.currentTarget.parentElement.innerText = '📷';
+                            e.currentTarget.parentElement.classList.add('text-4xl', 'text-sky-300');
+                        }
+                    }}
                  />
             </div>
-            <h1 className="text-5xl font-black tracking-tighter mb-3 bg-gradient-to-r from-pink-400 to-sky-400 bg-clip-text text-transparent drop-shadow-sm">
+            {/* Added extra bottom margin (mb-6) to separate from subtitle */}
+            <h1 className="text-5xl font-black tracking-tighter mb-6 bg-gradient-to-r from-pink-400 to-sky-400 bg-clip-text text-transparent drop-shadow-sm">
                 Sagiri Camera
             </h1>
             <p className="text-slate-500 font-medium tracking-wide">让虚拟融合进现实</p>
@@ -151,8 +209,8 @@ const App: React.FC = () => {
 
                     <div className="flex flex-col items-center mb-6 mt-2">
                         <div className="w-20 h-20 rounded-full bg-slate-100 overflow-hidden mb-3 border-[3px] border-white shadow-lg relative group">
-                            {/* Author Avatar - updated to use the same icon as requested or github as fallback */}
-                            <img src="https://youke2.picui.cn/s1/2025/12/13/693ceed094acd.png" alt="yunchenqwq" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "https://github.com/yunchenqwq.png"}} />
+                            {/* Author Avatar */}
+                            <img src="./author.jpg" alt="yunchenqwq" className="w-full h-full object-cover" onError={(e) => {e.currentTarget.src = "https://github.com/yunchenqwq.png"}} />
                         </div>
                         <h3 className="font-bold text-lg text-slate-800">yunchenqwq</h3>
                         <p className="text-xs text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full mt-1">独立开发者</p>
@@ -226,6 +284,7 @@ const App: React.FC = () => {
                 frames={frames}
                 setFrames={setFrames}
                 availableStickers={availableStickers}
+                setAvailableStickers={setAvailableStickers}
             />
         )}
         {currentView === 'gallery' && (

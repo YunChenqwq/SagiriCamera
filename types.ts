@@ -13,6 +13,7 @@ export interface Sticker {
   scale: number;
   rotation: number;
   aspectRatio: number;
+  blob?: Blob; // Added for persistence
 }
 
 export interface Point {
@@ -52,4 +53,5 @@ export interface FrameData {
   name: string;
   url: string;
   aspectRatio: AspectRatio;
+  blob?: Blob; // Added for persistence
 }

@@ -1,0 +1,50 @@
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overscroll-behavior: none;
+  background-color: #f0f9ff; /* sky-50 */
+  color: #1e293b; /* slate-800 */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Hide scrollbar globally */
+::-webkit-scrollbar {
+  width: 0px;
+  background: transparent;
+}
+
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Custom Blur for Camera Flip */
+.camera-flipping {
+  filter: blur(10px);
+  transition: filter 0.4s ease;
+}
+
+.camera-stable {
+  filter: blur(0px);
+  transition: filter 0.4s ease;
+}
+
+/* Ensure padding-bottom-safe is respected */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.pt-safe {
+  padding-top: env(safe-area-inset-top);
+}

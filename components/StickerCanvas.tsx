@@ -9,14 +9,6 @@ interface StickerCanvasProps {
   canvasRef: React.RefObject<HTMLCanvasElement>;
   selectedStickerId: string | null;
   setSelectedStickerId: (id: string | null) => void;
-  interactionHandlers?: Pick<
-    React.CanvasHTMLAttributes<HTMLCanvasElement>,
-    | 'onPointerDown'
-    | 'onPointerMove'
-    | 'onPointerUp'
-    | 'onPointerLeave'
-    | 'onPointerCancel'
-  >;
 }
 
 const StickerCanvas: React.FC<StickerCanvasProps> = ({
@@ -25,7 +17,6 @@ const StickerCanvas: React.FC<StickerCanvasProps> = ({
   height,
   canvasRef,
   selectedStickerId,
-  interactionHandlers,
 }) => {
   const imageCache = useRef<Map<string, HTMLImageElement>>(new Map());
 
@@ -94,8 +85,7 @@ const StickerCanvas: React.FC<StickerCanvasProps> = ({
       width={width}
       height={height}
       className="absolute top-0 left-0 w-full h-full z-10"
-      style={{ touchAction: 'none' }}
-      {...interactionHandlers}
+      // Gestures are now handled by parent component overlay
     />
   );
 };

@@ -1,6 +1,7 @@
+
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { IconMagic, IconCheck, IconUndo, IconTrash, IconMarquee, IconScissors, IconLayers, IconImage } from './Icons';
-import { getDistance, getAngle, getMidpoint, getTimestampStr } from '../utils';
+import { getDistance, getAngle, getMidpoint, getTimestampStr, dbAdd, STORE_GALLERY, STORE_STICKERS, STORE_FRAMES } from '../utils';
 import { FrameData, GalleryItem, AspectRatio } from '../types';
 
 interface EditorProps {
@@ -733,7 +734,7 @@ const Editor: React.FC<EditorProps> = ({
       }, 50);
   };
 
-  const handleSaveAction = (type: 'gallery' | 'sticker' | 'frame') => {
+  const handleSaveAction = async (type: 'gallery' | 'sticker' | 'frame') => {
     if (!resultUrl) return;
 
     // Convert dataURL to Blob
@@ -757,15 +758,17 @@ const Editor: React.FC<EditorProps> = ({
           filename: `edited_${ts}.png`
        };
        setGalleryItems(prev => [...prev, newItem]);
+       await dbAdd(STORE_GALLERY, newItem);
        showToast("已保存到图库");
     } else if (type === 'sticker') {
-       const newSticker = { id: `s_${ts}`, url: resultUrl };
+       const newSticker = { id: `s_${ts}`, url: resultUrl, blob: blob };
        setAvailableStickers(prev => [...prev, newSticker]);
+       await dbAdd(STORE_STICKERS, newSticker);
        showToast("已保存为贴纸素材");
     } else if (type === 'frame') {
        // Estimate aspect ratio
        const img = new Image();
-       img.onload = () => {
+       img.onload = async () => {
            const ratio = img.width / img.height;
            let ar: AspectRatio = '3:4';
            if (Math.abs(ratio - 1) < 0.1) ar = '1:1';
@@ -775,9 +778,11 @@ const Editor: React.FC<EditorProps> = ({
                id: `f_${ts}`,
                name: '自定义',
                url: resultUrl,
-               aspectRatio: ar
+               aspectRatio: ar,
+               blob: blob
            };
            setFrames(prev => [...prev, newFrame]);
+           await dbAdd(STORE_FRAMES, newFrame);
            showToast("已保存为画框素材");
        };
        img.src = resultUrl;

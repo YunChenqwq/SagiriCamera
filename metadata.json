@@ -1,7 +1,7 @@
 {
   "name": "Sagiri Camera",
   "description": "让虚拟融合进现实 - 纱雾相机",
-  "icon": "https://youke2.picui.cn/s1/2025/12/13/693ceed094acd.png",
+  "icon": "./SagiriCamera.jpg",
   "requestFramePermissions": [
     "camera",
     "microphone"

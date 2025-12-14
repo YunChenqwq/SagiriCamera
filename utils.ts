@@ -1,3 +1,4 @@
+
 import { Point } from './types';
 
 // Standard download anchor method
@@ -43,4 +44,68 @@ export const getMidpoint = (p1: Point, p2: Point): Point => {
     x: (p1.x + p2.x) / 2,
     y: (p1.y + p2.y) / 2
   };
+};
+
+// --- IndexedDB Persistence ---
+const DB_NAME = 'sagiri_cam_db';
+const DB_VERSION = 1;
+export const STORE_GALLERY = 'gallery';
+export const STORE_STICKERS = 'stickers';
+export const STORE_FRAMES = 'frames';
+
+export const initDB = async () => {
+    return new Promise<IDBDatabase>((resolve, reject) => {
+        const req = indexedDB.open(DB_NAME, DB_VERSION);
+        req.onupgradeneeded = (e) => {
+            const db = (e.target as IDBOpenDBRequest).result;
+            if (!db.objectStoreNames.contains(STORE_GALLERY)) db.createObjectStore(STORE_GALLERY, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains(STORE_STICKERS)) db.createObjectStore(STORE_STICKERS, { keyPath: 'id' });
+            if (!db.objectStoreNames.contains(STORE_FRAMES)) db.createObjectStore(STORE_FRAMES, { keyPath: 'id' });
+        };
+        req.onsuccess = () => resolve(req.result);
+        req.onerror = () => reject(req.error);
+    });
+};
+
+export const dbAdd = async (storeName: string, item: any) => {
+    try {
+        const db = await initDB();
+        return new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).put(item);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.error("DB Add Error", e);
+    }
+};
+
+export const dbGetAll = async (storeName: string) => {
+    try {
+        const db = await initDB();
+        return new Promise<any[]>((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readonly');
+            const req = tx.objectStore(storeName).getAll();
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => reject(req.error);
+        });
+    } catch (e) {
+        console.error("DB Get Error", e);
+        return [];
+    }
+};
+
+export const dbDelete = async (storeName: string, id: string) => {
+    try {
+        const db = await initDB();
+        return new Promise<void>((resolve, reject) => {
+            const tx = db.transaction(storeName, 'readwrite');
+            tx.objectStore(storeName).delete(id);
+            tx.oncomplete = () => resolve();
+            tx.onerror = () => reject(tx.error);
+        });
+    } catch (e) {
+        console.error("DB Delete Error", e);
+    }
 };
