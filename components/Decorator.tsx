@@ -215,6 +215,14 @@ const Decorator: React.FC<DecoratorProps> = ({
       const v = e.currentTarget;
       setMediaDims({ width: v.videoWidth, height: v.videoHeight });
       setAspectRatio(`${v.videoWidth}:${v.videoHeight}`);
+      hasFittedRef.current = false;
+      v.currentTime = 0;
+      v.loop = true;
+      v.muted = true;
+      const play = v.play();
+      if (play && typeof play.then === 'function') {
+          play.catch(err => console.warn("Auto-play blocked", err));
+      }
   };
 
   const getStickerAtPoint = (x: number, y: number) => {
