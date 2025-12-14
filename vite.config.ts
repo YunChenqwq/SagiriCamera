@@ -18,6 +18,8 @@ export default defineConfig(({ mode }) => {
           'icon/favicon.ico',
           'icon/favicon.svg',
           'icon/apple-touch-icon.png',
+          'SagiriCamera.jpg',
+          'Author.jpg',
         ],
         manifest: {
           name: 'Sagiri Camera',
@@ -49,6 +51,67 @@ export default defineConfig(({ mode }) => {
               src: 'icon/apple-touch-icon.png',
               sizes: '180x180',
               type: 'image/png',
+            },
+          ],
+          shortcuts: [
+            {
+              name: 'Sagiri Camera',
+              url: '/',
+              icons: [
+                {
+                  src: 'icon/web-app-manifest-192x192.png',
+                  sizes: '192x192',
+                  type: 'image/png',
+                  purpose: 'any maskable',
+                },
+              ],
+            },
+          ],
+        },
+        workbox: {
+          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,json}'],
+          globIgnores: ['**/official/**'],
+          runtimeCaching: [
+            {
+              urlPattern: ({ url, sameOrigin }) =>
+                sameOrigin && url.pathname.startsWith('/official/'),
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'official-assets',
+                expiration: {
+                  maxEntries: 100,
+                  maxAgeSeconds: 60 * 60 * 24 * 30, // 30 days
+                },
+                cacheableResponse: {
+                  statuses: [0, 200],
+                },
+              },
+            },
+            {
+              urlPattern: ({ url, sameOrigin }) =>
+                sameOrigin && /SagiriCamera\.jpg$|Author\.jpg$/i.test(url.pathname),
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'profile-images',
+                expiration: {
+                  maxEntries: 10,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
+            },
+            {
+              urlPattern: ({ url }) =>
+                url.origin === 'https://cdn.tailwindcss.com',
+              handler: 'CacheFirst',
+              options: {
+                cacheName: 'tailwind-cdn',
+                expiration: {
+                  maxEntries: 1,
+                  maxAgeSeconds: 60 * 60 * 24 * 30,
+                },
+                cacheableResponse: { statuses: [0, 200] },
+              },
             },
           ],
         },
