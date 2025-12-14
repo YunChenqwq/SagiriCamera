@@ -463,15 +463,21 @@ const Decorator: React.FC<DecoratorProps> = ({
              } catch(e) { console.log("Audio capture failed", e); }
           }
           
-          const recorder = new MediaRecorder(stream, { mimeType: 'video/mp4' }); 
+          const mimeType = MediaRecorder.isTypeSupported('video/mp4')
+            ? 'video/mp4'
+            : (MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+                ? 'video/webm;codecs=vp9'
+                : 'video/webm');
+          const fileExt = mimeType.includes('mp4') ? 'mp4' : 'webm';
+          const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: 4000000 }); 
           const chunks: Blob[] = [];
           recorder.ondataavailable = e => { if (e.data.size > 0) chunks.push(e.data); };
           recorder.onstop = () => {
-              const blob = new Blob(chunks, { type: 'video/mp4' });
+              const blob = new Blob(chunks, { type: mimeType });
               const url = URL.createObjectURL(blob);
               setGalleryItems(p => [...p, {
                   id: getTimestampStr(), type: 'video', url, blob,
-                  timestamp: new Date().toLocaleTimeString(), filename: `edit_${getTimestampStr()}.mp4`
+                  timestamp: new Date().toLocaleTimeString(), filename: `edit_${getTimestampStr()}.${fileExt}`
               }]);
               setIsExporting(false);
               onBack();
